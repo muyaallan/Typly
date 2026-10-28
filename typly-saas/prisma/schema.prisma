@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String?
+  image         String?
+  createdAt     DateTime      @default(now())
+
+  memberships   Membership[]
+  invites       Invite[]      @relation("InviteSender")
+}
+
+model Workspace {
+  id            String        @id @default(cuid())
+  name          String
+  slug          String        @unique
+  isPersonal    Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+
+  memberships   Membership[]
+  documents     Document[]
+  automations   Automation[]
+  triggers      Trigger[]
+  deliveries    Delivery[]
+  apiKeys       ApiKey[]
+  projects      Project[]
+  invites       Invite[]
+  subscription  Subscription?
+
+  @@index([slug])
+}
+
+model Membership {
+  id            String        @id @default(cuid())
+  role          String        @default("WRITER")
+  createdAt     DateTime      @default(now())
+
+  userId        String
+  workspaceId   String
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+model Document {
+  id            String        @id @default(cuid())
+  title         String        @default("Untitled Document")
+  content       String        @default("")
+  docType       String        @default("plain")
+  autoType      Boolean       @default(true)
+  metadata      String        @default("{}")
+  wordCount     Int           @default(0)
+  charCount     Int           @default(0)
+  created       DateTime      @default(now())
+  modified      DateTime      @updatedAt
+
+  workspaceId   String
+  projectId     String?
+  authorId      String
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project       Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  deliveries    Delivery[]
+
+  @@index([workspaceId, modified])
+  @@index([workspaceId, docType])
+  @@index([workspaceId, projectId])
+}
+
+model Project {
+  id            String        @id @default(cuid())
+  name          String
+  description   String        @default("")
+  color         String        @default("#3b82f6")
+  createdAt     DateTime      @default(now())
+
+  workspaceId   String
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  documents     Document[]
+
+  @@index([workspaceId])
+}
+
+model Automation {
+  id            String        @id @default(cuid())
+  name          String
+  documentId    String?
+  steps         String        @default("[]")
+  created       DateTime      @default(now())
+  modified      DateTime      @updatedAt
+
+  workspaceId   String
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model Trigger {
+  id            String        @id @default(cuid())
+  hotkey        String
+  action        String
+  automationId  String?
+  active        Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+
+  workspaceId   String
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model Delivery {
+  id            String        @id @default(cuid())
+  documentId    String
+  method        String
+  status        String
+  message       String?
+  durationMs    Int?
+  createdAt     DateTime      @default(now())
+
+  document      Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  workspaceId   String
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model ApiKey {
+  id            String        @id @default(cuid())
+  name          String
+  key           String        @unique
+  lastUsed      DateTime?
+  createdAt     DateTime      @default(now())
+
+  workspaceId   String
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model Invite {
+  id            String        @id @default(cuid())
+  email         String
+  role          String        @default("WRITER")
+  token         String        @unique
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  createdAt     DateTime      @default(now())
+
+  workspaceId   String
+  invitedById   String
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy     User          @relation("InviteSender", fields: [invitedById], references: [id])
+
+  @@index([workspaceId])
+  @@index([email])
+}
+
+model Subscription {
+  id            String        @id @default(cuid())
+  plan          String        @default("FREE")
+  status        String        @default("active")
+  seats         Int           @default(1)
+  renewsAt      DateTime?
+  createdAt     DateTime      @default(now())
+
+  workspaceId   String        @unique
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
